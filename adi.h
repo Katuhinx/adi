@@ -4,7 +4,7 @@
 /* Default to STANDARD_DATASET. */
 
 # if !defined(USE_SCALAR)//используются ли скалярные значения или массивы в программе
-#  define EXTRALARGE_DATASET
+#  define MINI_DATASET
 #endif
 
 # if !defined(MINI_DATASET) && !defined(SMALL_DATASET) && !defined(LARGE_DATASET) && !defined(EXTRALARGE_DATASET)// размер массивов

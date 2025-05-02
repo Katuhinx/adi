@@ -63,7 +63,7 @@ static void print_row(int row)
         {
           #pragma dvm region 
           {
-        #pragma dvm parallel([i1][i2] on X[i1][i2]) across(X[0 : 0][1 : 0], B[0 : 0][1 : 0]) stage(num_stages)
+        #pragma dvm parallel([i1][i2] on X[i1][i2]) across(X[0 : 0][1 : 0], B[0 : 0][1 : 0]) //stage(num_stages)
             for (i1 = 0; i1 < N; i1++)
               for (i2 = 1; i2 < N; i2++)
               {                                                   
@@ -76,12 +76,12 @@ static void print_row(int row)
             X[i1][N - 1] /= B[i1][N - 1];
           
 
-#pragma dvm parallel([i1][i2] on X[i1][i2]) shadow_renew(A, B) across(X[0 : 0][1 : 0]) stage(num_stages)
+#pragma dvm parallel([i1][i2] on X[i1][i2]) shadow_renew(A, B) across(X[0 : 0][1 : 0]) //stage(num_stages)
             for (i1 = 0; i1 < N; i1++)
               for (i2 = N - 2; i2 > 0; i2--)
                 X[i1][i2] = (X[i1][i2] - X[i1][i2 - 1] * A[i1][i2 - 1]) / B[i1][i2 - 1];
 
-#pragma dvm parallel([i1][i2] on X[i1][i2]) across(X[1 : 0][0 : 0], B[1 : 0][0 : 0]) stage(num_stages)
+#pragma dvm parallel([i1][i2] on X[i1][i2]) across(X[1 : 0][0 : 0], B[1 : 0][0 : 0]) //stage(num_stages)
             for (i1 = 1; i1 < N; i1++)
               for (i2 = 0; i2 < N; i2++)
               {
