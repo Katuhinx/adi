@@ -1,0 +1,8 @@
+/.vscode
+/docs
+adiXACC.c
+adiXMP2.c
+Makefile
+noreg2.txt
+reg2.txt
+path.ini
