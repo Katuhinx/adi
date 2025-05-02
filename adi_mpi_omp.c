@@ -4,7 +4,7 @@
 #include <mpi.h>
 #include <omp.h>
 #include "adi.h"
-#include "reportlib/reportlib.h"
+//#include "reportlib/reportlib.h"
 
 DATA_TYPE **X;
 DATA_TYPE **A;
@@ -14,17 +14,7 @@ int rank, size;
 int local_rows = N;
 int num_quanta = 1;   
 int quantum_size = N; 
-
-static int calculate_optimal_quanta()
-{
-    const int cache_line_size = 64;             // Размер кэш-линии в байтах
-    const int element_size = sizeof(DATA_TYPE); // Размер одного элемента в байтах
-
-    int elements_per_cache_line = cache_line_size / element_size; // Рассчитаем количество элементов, которое помещается в одну кэш-линию
-    quantum_size = elements_per_cache_line > 0 ? elements_per_cache_line : 1; // Убедимся, что размер кванта не меньше одного элемента
-    int optimal_quanta = local_rows / quantum_size; // Рассчитаем количество квантов
-    return optimal_quanta > 0 ? optimal_quanta : 1;  // Убедимся, что количество квантов не меньше 1
-}
+int dev_id;
 
 static void init_arrays()
 {
@@ -52,12 +42,12 @@ static void init_arrays()
     }
 
     // Передача массивов на GPU
-    #pragma omp target enter data map(alloc : X[0 : local_rows + 2], A[0 : local_rows + 2], B[0 : local_rows + 2])
+    #pragma omp target enter data map(alloc : X[0 : local_rows + 2], A[0 : local_rows + 2], B[0 : local_rows + 2]) device(dev_id)
 
     for (int i = 0; i < local_rows + 2; i++)
     {
-        #pragma omp target enter data map(alloc : X[i][0 : N], A[i][0 : N], B[i][0 : N])
-        #pragma omp target update to(X[i][0 : N], A[i][0 : N], B[i][0 : N])
+        #pragma omp target enter data map(alloc : X[i][0 : N], A[i][0 : N], B[i][0 : N]) device(dev_id)
+        #pragma omp target update to(X[i][0 : N], A[i][0 : N], B[i][0 : N]) device(dev_id)
     }
 }
 
@@ -66,13 +56,13 @@ static void free_arrays()
 {
     for (int i = 0; i < local_rows + 2; i++)
     {
-        #pragma omp target exit data map(delete : X[i][0 : N], A[i][0 : N], B[i][0 : N])
+        #pragma omp target exit data map(delete : X[i][0 : N], A[i][0 : N], B[i][0 : N]) device(dev_id)
         free(X[i]);
         free(A[i]);
         free(B[i]);
     }
 
-    #pragma omp target exit data map(delete : X[0 : local_rows + 2], A[0 : local_rows + 2], B[0 : local_rows + 2])
+    #pragma omp target exit data map(delete : X[0 : local_rows + 2], A[0 : local_rows + 2], B[0 : local_rows + 2]) device(dev_id)
     free(X);
     free(A);
     free(B);
@@ -106,7 +96,7 @@ static void kernel_adi()
     for (t = 0; t < TSTEPS; t++)
     {
         // Горизонтальные обновления
-        #pragma omp target teams distribute parallel for simd 
+        #pragma omp target teams distribute parallel for simd device(dev_id)
         for (i1 = 1; i1 < local_rows + 1; i1++)
         {
             for (i2 = 1; i2 < N; i2++)
@@ -119,7 +109,7 @@ static void kernel_adi()
         }
 
         // Обратная подстановка для локальных строк
-        #pragma omp target teams distribute parallel for simd 
+        #pragma omp target teams distribute parallel for simd device(dev_id)
         for (i1 = 1; i1 < local_rows + 1; i1++)
             for (i2 = 0; i2 < N - 2; i2++)
                 X[i1][N - i2 - 2] = (X[i1][N - 2 - i2] - X[i1][N - 2 - i2 - 1] * A[i1][N - i2 - 3]) / B[i1][N - 3 - i2];
@@ -141,11 +131,11 @@ static void kernel_adi()
                 MPI_Waitall(2, requests, statuses);
 
                 // Копирование полученных данных на GPU
-                #pragma omp target update to(X[0][start : end - start], B[0][start : end - start])
+                #pragma omp target update to(X[0][start : end - start], B[0][start : end - start]) device(dev_id)
             }
 
             // Обработка текущего кванта
-            #pragma omp target teams 
+            #pragma omp target teams device(dev_id)
             for (i1 = (rank == 0 ? 2 : 1); i1 < local_rows + 1; i1++)
             {
                 #pragma omp distribute parallel for simd
@@ -159,7 +149,7 @@ static void kernel_adi()
             // Отправка данных следующему процессу
             if (rank < size - 1 && size > 1)
             {
-                #pragma omp target update from(X[local_rows][start : end - start], B[local_rows][start : end - start])
+                #pragma omp target update from(X[local_rows][start : end - start], B[local_rows][start : end - start]) device(dev_id)
                 MPI_Isend(&X[local_rows][start], current_quantum_size, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, &requests[0]);
                 MPI_Isend(&B[local_rows][start], current_quantum_size, MPI_DOUBLE, rank + 1, 1, MPI_COMM_WORLD, &requests[1]);
                 MPI_Waitall(2, requests, statuses);
@@ -169,7 +159,7 @@ static void kernel_adi()
         // Обновление последней строки
         if (rank == size - 1)
         {
-            #pragma omp target teams distribute parallel for simd 
+            #pragma omp target teams distribute parallel for simd device(dev_id)
             for (i2 = 0; i2 < N; i2++)
                 X[local_rows][i2] = X[local_rows][i2] / B[local_rows][i2];
         }
@@ -180,18 +170,18 @@ static void kernel_adi()
             MPI_Irecv(X[0], N, MPI_DOUBLE, rank - 1, 2, MPI_COMM_WORLD, &requests[0]);
             MPI_Irecv(A[0], N, MPI_DOUBLE, rank - 1, 3, MPI_COMM_WORLD, &requests[1]);
             MPI_Waitall(2, requests, statuses);
-            #pragma omp target update to(X[0][0 : N], A[0][0 : N])
+            #pragma omp target update to(X[0][0 : N], A[0][0 : N]) device(dev_id)
         }
 
         if (rank < size - 1)
         {
-            #pragma omp target update from(X[local_rows][0 : N], A[local_rows][0 : N])
+            #pragma omp target update from(X[local_rows][0 : N], A[local_rows][0 : N]) device(dev_id)
             MPI_Isend(X[local_rows], N, MPI_DOUBLE, rank + 1, 2, MPI_COMM_WORLD, &requests[0]);
             MPI_Isend(A[local_rows], N, MPI_DOUBLE, rank + 1, 3, MPI_COMM_WORLD, &requests[1]);
             MPI_Waitall(2, requests, statuses);
         }
 
-        #pragma omp target teams 
+        #pragma omp target teams device(dev_id)
         for (i1 = local_rows - (rank == (size - 1) ? 1 : 0); i1 >= (rank == 0 ? 2 : 1); i1--)
         {
             #pragma omp distribute parallel for simd
@@ -214,7 +204,8 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    num_quanta = calculate_optimal_quanta();
+    dev_id = rank % omp_get_num_devices();
+    printf( "Rank %d assigned to device %d \n", rank, dev_id);
 
     if (argc > 1)
     {

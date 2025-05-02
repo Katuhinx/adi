@@ -145,7 +145,7 @@ int main(int argc, char **argv)
 
     //print_row(31);
 
-   // report_result("adi_omp_cpu", args_string, time1 - time0);
+   report_result("adi_omp_cpu", args_string, time1 - time0);
 
     free_arrays();
 }

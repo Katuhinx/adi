@@ -5,11 +5,9 @@
 #include <math.h>
 #include <stdbool.h>
 #include "adi.h"
-//#include "reportlib/reportlib.h"
+#include "reportlib/reportlib.h"
 
-int num_stages = 1;
-
-double second();
+// num_stages = 1;
 
 # pragma dvm array distribute [ block ][ block ] 
  DATA_TYPE A[N][N];
@@ -106,49 +104,27 @@ static void print_row(int row)
         const char args_string[256];
         double time0, time1;
 
-        if (argc > 1)
-        {
-          num_stages = atoi(argv[1]);
-        } 
+        // if (argc > 1)
+        // {
+        //   num_stages = atoi(argv[1]);
+        // } 
       
-        sprintf(args_string, "%d", num_stages);
+        sprintf(args_string, "%d %d %d", atoi(argv[1]), atoi(argv[2]), atoi(argv[3]));
 
         init_array();
 
-        time0 = second();
+        dvmh_barrier();
+        time0 = dvmh_wtime();
         kernel_adi();
-        time1 = second();
+        dvmh_barrier();
+        time1 = dvmh_wtime();
 
         //print_row(32);
 
         printf("\nN: %d", N);
-        printf("\nNumber of quanta: %d", num_stages);
         printf("\nTotal execution time: %f seconds\n", time1 - time0);
 
-        //report_result("adi_dvm", args_string, time1 - time0);
+        report_result("adi_dvm_cpu", args_string, time1 - time0);
 
         return 0;
-      }
-
-      double second()
-      {
-        struct timeval tm;
-        double t;
-
-        static int base_sec = 0, base_usec = 0;
-
-        gettimeofday(&tm, NULL);
-
-        if (base_sec == 0 && base_usec == 0)
-        {
-          base_sec = tm.tv_sec;
-          base_usec = tm.tv_usec;
-          t = 0.0;
-        }
-        else
-        {
-          t = (double)(tm.tv_sec - base_sec) + (double)(tm.tv_usec - base_usec) / 1.0e6;
-        }
-
-        return t;
       }
