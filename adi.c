@@ -102,7 +102,7 @@ int main(int argc, char **argv)
     // Добавлен вывод общего времени выполнения
     printf("Total execution time: %f seconds\n", time1 - time0);
 
-    print_row(31);
+    //print_row(31);
     return 0;
 }
 

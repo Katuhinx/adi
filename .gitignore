@@ -1,5 +1,6 @@
 /.vscode
 /docs
+/reports
 adiXACC.c
 adiXMP2.c
 Makefile

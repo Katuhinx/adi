@@ -5,7 +5,7 @@
 #include <mpi.h>
 #include <openacc.h>
 #include "adi.h"
-//#include "reportlib/reportlib.h"
+#include "reportlib/reportlib.h"
 
 DATA_TYPE **X;
 DATA_TYPE **A;
@@ -276,9 +276,10 @@ int main(int argc, char **argv)
         printf("\nQuantum size: %d", quantum_size);
         printf("\nNumber of quanta: %d", num_quanta);
         printf("\nTotal execution time: %f seconds\n", time1 - time0);
+        //report_result("adi_mpi_acc", args_string, time1 - time0);
     }
 
-    //report_result("adi_mpi_acc", args_string, time1 - time0);
+    
     
     //print_row(32);
     free_arrays();

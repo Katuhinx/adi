@@ -236,7 +236,7 @@ int main(int argc, char **argv)
 
     // print_row(32);
 
-    report_result("adi_mpi", args_string, time1 - time0);
+    // report_result("adi_mpi", args_string, time1 - time0);
 
     free_arrays();
     MPI_Finalize();

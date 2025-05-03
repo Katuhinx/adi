@@ -4,7 +4,7 @@
 #include <mpi.h>
 #include <omp.h>
 #include "adi.h"
-//#include "reportlib/reportlib.h"
+#include "reportlib/reportlib.h"
 
 DATA_TYPE **X;
 DATA_TYPE **A;
@@ -204,7 +204,7 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    dev_id = rank % omp_get_num_devices();
+    dev_id = 0;//rank % omp_get_num_devices();
     printf( "Rank %d assigned to device %d \n", rank, dev_id);
 
     if (argc > 1)
