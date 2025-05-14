@@ -5,7 +5,6 @@
 #include <mpi.h>
 #include <openacc.h>
 #include "adi.h"
-#include "reportlib/reportlib.h"
 
 DATA_TYPE **X;
 DATA_TYPE **A;
@@ -54,15 +53,6 @@ static void init_arrays()
             A[i + 1][j] = ((DATA_TYPE)(rank * local_rows + i) * (j + 2) + 2) / N;
             B[i + 1][j] = ((DATA_TYPE)(rank * local_rows + i) * (j + 3) + 3) / N;
         }
-    }
-    
-    // Передача указателей верхнего уровня на устройство
-    #pragma acc enter data create(X[0 : local_rows + 2], A[0 : local_rows + 2], B[0 : local_rows + 2])
-    // Передача данных для каждого подмассива
-    for (int i = 0; i < local_rows + 2; i++)
-    {
-        #pragma acc enter data create(X[i][0 : N], A[i][0 : N], B[i][0 : N])
-        #pragma acc update device(X[i][0 : N], A[i][0 : N], B[i][0 : N])
     }
 }
 
@@ -114,6 +104,15 @@ static void kernel_adi()
     int t, i1, i2, q;
     MPI_Status statuses[2];
     MPI_Request requests[2];
+
+    // Передача указателей верхнего уровня на устройство
+    #pragma acc enter data create(X[0 : local_rows + 2], A[0 : local_rows + 2], B[0 : local_rows + 2])
+    // Передача данных для каждого подмассива
+    for (int i = 0; i < local_rows + 2; i++)
+    {
+        #pragma acc enter data create(X[i][0 : N], A[i][0 : N], B[i][0 : N])
+        #pragma acc update device(X[i][0 : N], A[i][0 : N], B[i][0 : N])
+    }
 
     for (t = 0; t < TSTEPS; t++)
     {
@@ -276,12 +275,9 @@ int main(int argc, char **argv)
         printf("\nQuantum size: %d", quantum_size);
         printf("\nNumber of quanta: %d", num_quanta);
         printf("\nTotal execution time: %f seconds\n", time1 - time0);
-        //report_result("adi_mpi_acc", args_string, time1 - time0);
+        report_result("adi_mpi_acc", args_string, time1 - time0);
     }
-
     
-    
-    //print_row(32);
     free_arrays();
     MPI_Finalize();
     

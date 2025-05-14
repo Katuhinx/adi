@@ -3,12 +3,11 @@
 #include <stdbool.h>
 #include <omp.h>
 #include "adi.h"
-#include "reportlib/reportlib.h"
 
 DATA_TYPE **X;
 DATA_TYPE **A;
 DATA_TYPE **B;
-int threads = 1;
+int num_threads = 1;
 
 static void init_arrays()
 {
@@ -71,11 +70,12 @@ static void kernel_adi()
     for (t = 0; t < TSTEPS; t++)
     {
         // Горизонтальные обновления
-        #pragma omp target teams distribute parallel for simd num_threads(threads)//num_teams(0) thread_limit(num_threads)
+        #pragma omp target teams distribute parallel for simd thread_limit(num_threads)
         for (i1 = 0; i1 < N; i1++)
         {
             for (i2 = 1; i2 < N; i2++)
             {
+                //if (i1 == 0 && i2 == 1){printf("Threads per team: %d, team: %d\n", omp_get_num_threads(), omp_get_team_num());}
                 X[i1][i2] = X[i1][i2] - X[i1][i2 - 1] * A[i1][i2] / B[i1][i2 - 1];
                 B[i1][i2] = B[i1][i2] - A[i1][i2] * A[i1][i2] / B[i1][i2 - 1];
             }
@@ -84,13 +84,13 @@ static void kernel_adi()
         }
 
         // Обратная подстановка для локальных строк
-        #pragma omp target teams distribute parallel for simd num_threads(threads) //num_teams(0) thread_limit(num_threads)
+        #pragma omp target teams distribute parallel for simd thread_limit(num_threads)
         for (i1 = 0; i1 < N; i1++)
             for (i2 = 0; i2 < N - 2; i2++)
                 X[i1][N - i2 - 2] = (X[i1][N - 2 - i2] - X[i1][N - 2 - i2 - 1] * A[i1][N - i2 - 3]) / B[i1][N - 3 - i2];
 
         // Вертикальные обновления
-        #pragma omp target teams //num_teams(0) thread_limit(num_threads)
+        #pragma omp target teams thread_limit(num_threads)
         for (i1 = 1; i1 < N; i1++)
         {
             #pragma omp distribute parallel for simd 
@@ -102,12 +102,12 @@ static void kernel_adi()
         }
 
         // Обновление последней строки
-        #pragma omp target teams distribute parallel for simd num_threads(threads) //num_teams(0) thread_limit(num_threads)
+        #pragma omp target teams distribute parallel for simd thread_limit(num_threads)
         for (i2 = 0; i2 < N; i2++)
             X[N - 1][i2] = X[N - 1][i2] / B[N - 1][i2];
 
         // Обратная подстановка для вертикальных обновлений
-        #pragma omp target teams//num_teams(0) thread_limit(num_threads)
+        #pragma omp target teams thread_limit(num_threads)
         for (i1 = 0; i1 < N-2; i1++)
         {
             #pragma omp distribute parallel for simd 
@@ -121,31 +121,20 @@ int main(int argc, char **argv)
 {
     const char args_string[256];
     double time0, time1;
-
     if (argc > 1)
     {
-        threads = atoi(argv[1]);
+        num_threads = atoi(argv[1]);
     } 
-    else
-    {
-        threads = omp_get_max_threads();
-    }
 
     init_arrays();
-
-    sprintf(args_string, "%d", threads);
 
     time0 = omp_get_wtime();
     kernel_adi();
     time1 =  omp_get_wtime();
 
     printf("\nN: %d", N);
-    printf("\nNumber of theards: %d", threads);
+    printf("\nNumber of theards: %d", num_threads);
     printf("\nTotal execution time: %f seconds\n", time1 - time0);
-
-    // print_row(31);
-
-//    report_result("adi_omp", args_string, time1 - time0);
 
     free_arrays();
 }

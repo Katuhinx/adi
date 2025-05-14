@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <sys/time.h>
 #include "adi.h"
-//#include "reportlib/reportlib.h"
 
 double second();
 
@@ -25,8 +25,8 @@ static void init_arrays()
         B[i] = (DATA_TYPE *)malloc(N * sizeof(DATA_TYPE));
     }
 
-    #pragma acc enter data create(X[0 : N][0 : N], A[0 : N][0 : N], B[0 : N][0 : N])
-    #pragma acc parallel loop collapse(2) present(X, A, B)
+    // #pragma acc enter data create(X[0 : N][0 : N], A[0 : N][0 : N], B[0 : N][0 : N])
+    // #pragma acc parallel loop collapse(2) present(X, A, B)
     for (i = 0; i < N; i++) {
         for (j = 0; j < N; j++)
         {
@@ -57,13 +57,13 @@ static void kernel_adi()
 {
     int t, i1, i2;
     
-    #pragma acc data present(A, B, X)
+    #pragma acc enter data copyin(X[0:N][0:N], A[0:N][0:N], B[0:N][0:N])
+
+    #pragma acc data present(X, A, B)
     for (t = 0; t < TSTEPS; t++)
     {
         // Горизонтальные обновления
-        #pragma acc parallel //program runtime 62.28%  
-        {
-            #pragma acc loop gang vector 
+        #pragma acc parallel loop gang vector 
             for (i1 = 0; i1 < N; i1++)
             {  
                 #pragma acc loop seq
@@ -75,8 +75,7 @@ static void kernel_adi()
                     B[i1][i2] = B[i1][i2] - A[i1][i2] * A[i1][i2] / B[i1][idx];
                 } 
             }
-        }
-
+        
         #pragma acc parallel loop gang vector
         for (i1 = 0; i1 < N; i1++)
         {
@@ -84,9 +83,7 @@ static void kernel_adi()
         }
         
         // Обратная подстановка для локальных строк
-        #pragma acc parallel //program runtime 28.80%
-        {
-            #pragma acc loop gang vector
+        #pragma acc parallel loop gang vector
             for (i1 = 0; i1 < N; i1++)
             {
                 #pragma acc loop seq
@@ -96,7 +93,7 @@ static void kernel_adi()
                     X[i1][idx] = (X[i1][idx] - X[i1][idx - 1] * A[i1][idx - 1]) / B[i1][idx - 1];
                 }
             }
-        }
+        
 
         // Вертикальные обновления
         #pragma acc parallel 
@@ -146,13 +143,17 @@ int main(int argc, char **argv)
     kernel_adi();
     time1 = second();
 
+    // print_row(31);
+    
+    const char* env = getenv("ACC_NUM_CORES");
+    if (env)
+        printf("ACC_NUM_CORES = %s\n", env);
+    else
+        printf("ACC_NUM_CORES not set (используются все доступные ядра)\n");
+
     printf("\nN: %d", N);
     printf("\nTotal execution time: %f seconds\n", time1 - time0);
 
-    //report_result("adi_oacc", "", time1 - time0);
-
-    // print_row(32);
-    
     free_arrays();    
 
     return 0;

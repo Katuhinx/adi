@@ -4,7 +4,6 @@
 #include <mpi.h>
 #include <omp.h>
 #include "adi.h"
-#include "reportlib/reportlib.h"
 
 DATA_TYPE **X;
 DATA_TYPE **A;
@@ -40,15 +39,6 @@ static void init_arrays()
             B[i + 1][j] = ((DATA_TYPE)(rank * local_rows + i) * (j + 3) + 3) / N;
         }
     }
-
-    // Передача массивов на GPU
-    #pragma omp target enter data map(alloc : X[0 : local_rows + 2], A[0 : local_rows + 2], B[0 : local_rows + 2]) device(dev_id)
-
-    for (int i = 0; i < local_rows + 2; i++)
-    {
-        #pragma omp target enter data map(alloc : X[i][0 : N], A[i][0 : N], B[i][0 : N]) device(dev_id)
-        #pragma omp target update to(X[i][0 : N], A[i][0 : N], B[i][0 : N]) device(dev_id)
-    }
 }
 
 // Функция освобождения памяти массивов X, A и B
@@ -76,7 +66,7 @@ static void print_row(int row)
     int valid_rank = row / local_rows;
     row = row % local_rows;
 
-    #pragma omp target update from(X[row + 1][0 : N])
+    #pragma omp target update from(X[0 : local_rows + 2][0 : N]) device(dev_id)
 
     if (rank == valid_rank)
     {
@@ -92,6 +82,15 @@ static void kernel_adi()
     int t, i1, i2, q;
     MPI_Status statuses[2];
     MPI_Request requests[2];
+
+    // Передача массивов на GPU
+    #pragma omp target enter data map(alloc : X[0 : local_rows + 2], A[0 : local_rows + 2], B[0 : local_rows + 2]) device(dev_id)
+
+    for (int i = 0; i < local_rows + 2; i++)
+    {
+        #pragma omp target enter data map(alloc : X[i][0 : N], A[i][0 : N], B[i][0 : N]) device(dev_id)
+        #pragma omp target update to(X[i][0 : N], A[i][0 : N], B[i][0 : N]) device(dev_id)
+    }
 
     for (t = 0; t < TSTEPS; t++)
     {
@@ -197,14 +196,13 @@ static void kernel_adi()
 
 int main(int argc, char **argv)
 {
-    const char args_string[256];
     double time0, time1;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    dev_id = 0;//rank % omp_get_num_devices();
+    dev_id = rank % omp_get_num_devices();
     printf( "Rank %d assigned to device %d \n", rank, dev_id);
 
     if (argc > 1)
@@ -231,8 +229,6 @@ int main(int argc, char **argv)
     num_quanta = num_quanta < 1 ? 1 : num_quanta;
     num_quanta = num_quanta > N ? N : num_quanta;
 
-    sprintf(args_string, "%d %d %d", size, num_threads, num_quanta);
-
     local_rows = (N / size) + (rank < (N % size) ? 1 : 0); // количество элементов на 1 процессе
     quantum_size = N / num_quanta;                         // количество элементов на 1 кванте
     num_quanta = N / quantum_size;                         // количество квантов пересчитаное с учетом размера кванта
@@ -251,10 +247,6 @@ int main(int argc, char **argv)
         printf("\nNumber of quanta: %d", num_quanta);
         printf("\nTotal execution time: %f seconds\n", time1 - time0);
     }
-
-    //report_result("adi_mpi_omp", args_string, time1 - time0);
-
-    //print_row(31);
 
     free_arrays();
 

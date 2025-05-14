@@ -4,7 +4,6 @@
 #include <math.h>
 #include <mpi.h>
 #include "adi.h"
-#include "reportlib/reportlib.h"
 
 DATA_TYPE **X;
 DATA_TYPE **A;
@@ -192,7 +191,6 @@ static void kernel_adi()
 int main(int argc, char **argv)
 {
     double time0, time1;
-    const char args_string[256];
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -213,8 +211,6 @@ int main(int argc, char **argv)
     num_quanta = num_quanta < 1 ? 1 : num_quanta;
     num_quanta = num_quanta > N ? N : num_quanta;
 
-    sprintf(args_string, "%d %d", size, num_quanta);
-
     local_rows = (N / size) + (rank < (N % size) ? 1 : 0); // количество элементов на 1 процессе
     quantum_size = N / num_quanta;                         // количество элементов на 1 кванте
     num_quanta = N / quantum_size;                         // количество квантов пересчитаное с учетом размера кванта
@@ -233,10 +229,6 @@ int main(int argc, char **argv)
         printf("\nNumber of quanta: %d", num_quanta);
         printf("\nTotal execution time: %f seconds\n", time1 - time0);
     }
-
-    // print_row(32);
-
-    // report_result("adi_mpi", args_string, time1 - time0);
 
     free_arrays();
     MPI_Finalize();
