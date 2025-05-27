@@ -1,7 +1,0 @@
-
-n=15000
-
-
-
-time=11.345540
-Total execution time: 11.345540 seconds
